@@ -1,0 +1,8 @@
+{
+    "input_shape": 784,
+    "n_classes": 10,
+    "neurons": [
+        100
+    ],
+    "dropout": 0.1
+}
