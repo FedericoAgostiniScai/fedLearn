@@ -2,6 +2,7 @@ import warnings
 from argparse import ArgumentParser
 import flwr as fl
 import numpy as np
+import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss
@@ -11,9 +12,11 @@ import utils
 
 class myClient(fl.client.NumPyClient):
     def __init__(self, cid, random_state=0):
-        data = np.load(f"../data/train_{cid}.npz")
+        data = pd.read_csv(f"../data/train_{cid}.csv.gz")
+        X, y = data.drop(columns="target").to_numpy(
+        ), data["target"].to_numpy()
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            data["X"], data["y"], test_size=0.15, random_state=random_state)
+            X, y, test_size=0.15, random_state=random_state)
         self.model = utils.get_sklearn_model(client=True)
         utils.set_initial_params(self.model)
 
@@ -40,7 +43,7 @@ class myClient(fl.client.NumPyClient):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("-i", "--id", type=int, help="Client ID")
+    parser.add_argument("-i", "--id", type=int, default=0, help="Client ID")
 
     return (vars(parser.parse_args()))
 
