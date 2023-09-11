@@ -3,7 +3,7 @@
 from argparse import ArgumentParser
 import os
 import json
-import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
 import flwr as fl
 
@@ -18,11 +18,12 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 # Define Flower client
 class myClient(fl.client.NumPyClient):
     def __init__(self, model, cid, random_state=0):
-        self.model = model
-        data = np.load(f"../data/train_{cid}.npz")
+        data = pd.read_csv(f"../data/train_{cid}.csv.gz")
+        X, y = data.drop(columns="target").to_numpy(
+        ), data["target"].to_numpy()
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            data["X"], data["y"], test_size=0.15, random_state=random_state)
-        self.model = utils.make_nn(client=True)
+            X, y, test_size=0.15, random_state=random_state)
+        self.model = model
 
     def get_properties(self, config):
         """Get properties of client."""
@@ -39,27 +40,22 @@ class myClient(fl.client.NumPyClient):
         # Update local model parameters
         self.model.set_weights(parameters)
 
-        # Get hyperparameters for this round
-        batch_size: int = config["batch_size"]
-        epochs: int = config["local_epochs"]
-
         # Train the model using hyperparameters from config
         history = self.model.fit(
-            self.x_train,
+            self.X_train,
             self.y_train,
-            batch_size,
-            epochs,
-            validation_split=0.1,
+            # validation_split=0.1,
+            **config  # Get hyperparameters for this round
         )
 
         # Return updated model parameters and results
         parameters_prime = self.model.get_weights()
-        num_examples_train = len(self.x_train)
+        num_examples_train = len(self.X_train)
         results = {
             "loss": history.history["loss"][0],
             "accuracy": history.history["accuracy"][0],
-            "val_loss": history.history["val_loss"][0],
-            "val_accuracy": history.history["val_accuracy"][0],
+            # "val_loss": history.history["val_loss"][0],
+            # "val_accuracy": history.history["val_accuracy"][0],
         }
         return parameters_prime, num_examples_train, results
 
@@ -69,13 +65,13 @@ class myClient(fl.client.NumPyClient):
         # Update local model with global parameters
         self.model.set_weights(parameters)
 
-        # Get config values
-        steps: int = config["val_steps"]
-
         # Evaluate global model parameters on the local test data and return results
         loss, accuracy = self.model.evaluate(
-            self.x_test, self.y_test, 32, steps=steps)
-        num_examples_test = len(self.x_test)
+            self.X_test,
+            self.y_test,
+            **config
+        )
+        num_examples_test = len(self.X_test)
         return loss, num_examples_test, {"accuracy": accuracy}
 
 
@@ -83,7 +79,7 @@ class myClient(fl.client.NumPyClient):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("-i", "--id", type=int, help="Client ID")
+    parser.add_argument("-i", "--id", type=int, default=0, help="Client ID")
 
     return (vars(parser.parse_args()))
 
@@ -99,3 +95,7 @@ if __name__ == "__main__":
 
     model = utils.make_nn(**params)
     client = myClient(model, cid=args["id"])
+
+    # Start Flower client
+    fl.client.start_numpy_client(
+        server_address="0.0.0.0:8080", client=client)

@@ -1,7 +1,6 @@
 import warnings
 from argparse import ArgumentParser
 import flwr as fl
-import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import train_test_split

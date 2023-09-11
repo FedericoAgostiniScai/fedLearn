@@ -1,9 +1,7 @@
-import numpy as np
 import pandas as pd
 import flwr as fl
 import utils
 from sklearn.metrics import log_loss
-from sklearn.linear_model import LogisticRegression
 from typing import Dict
 
 
